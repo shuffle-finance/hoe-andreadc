@@ -5,11 +5,11 @@ RewardHub needs a new architecture for its rewards processing system. The curren
 
 ## Requirements
 Design a scalable, reliable system for reward processing that can:
-- Handle 100,000+ transactions per day (assume evenly distributed on average, with spikes of 5x during promotions on a 1-min rampup)
+- Handle 100,000+ transactions per day - 70/min - (assume evenly distributed on average, with spikes of 5x during promotions on a 1-min rampup (350/min)
 - Process rewards asynchronously to keep transaction times fast
 - Ensure no duplicate rewards are issued
 - Maintain 99.9% availability
-- Allow for future data analysis of reward patterns
+- Allow for future data analysis of reward patterns (all transactions)
 - Protect sensitive financial data
 - Support a simple API for mobile and web clients
 
