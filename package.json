@@ -1,0 +1,20 @@
+{
+  "name": "rewardhub-engineering-assessment",
+  "version": "1.0.0",
+  "description": "Technical assessment for Head of Engineering position",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "aws-lambda": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.119",
+    "@types/jest": "^29.5.3",
+    "@types/node": "^20.4.9",
+    "jest": "^29.6.2",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.1.6"
+  }
+}
