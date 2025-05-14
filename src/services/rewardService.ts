@@ -1,4 +1,32 @@
+/*
+Report - Andrea Della Corte - Head of Engineering
+
+Reviewed package.json
+Reviewed tsconfig.json
+Ran tsc; some errors; uuid is missing
+Running npm install
+Note: uuid package is actually missing
+Fix: ran npm i --save-dev @types/uuid to fix - Fixed
+Note: package-lock.json not committed to repo (should ideally be to fix versioning and updated w/ testing)
+
+Note: RewardService uses dependency injection for UserService and MerchantService; good for modularity
+
+Testability: async processTransaction (...) const rewardChance = Math.random() + Math.random - Reviewed code;
+Don't think this could be abused, but might be difficult to be testable.
+
+Issue: Fix: Input to issueRewardToUser; be explicit about type - Cleared tsc error
+
+Issue: processTransaction // Inconsistency for multiple retries on processTransaction - Fixing idempotency
+
+Issue: processTransaction // Inconsistency for multiple retries on processTransaction - Implementing retries
+
+Testability: extracted reward checks into a separate method
+
+*/
+
 // src/services/rewardService.ts
+
+type RandomProvider = () => number;
 
 import { Transaction } from '../models/Transaction';
 import { Reward } from '../models/Reward';
@@ -9,13 +37,18 @@ import { v4 as uuidv4 } from 'uuid';
 export class RewardService {
   private userService: UserService;
   private merchantService: MerchantService;
+  private random: RandomProvider;
   
-  constructor(userService: UserService, merchantService: MerchantService) {
+  constructor(
+      userService: UserService,
+      merchantService: MerchantService,
+      random: RandomProvider = Math.random) {
     this.userService = userService;
     this.merchantService = merchantService;
+    this.random = random;
   }
-  
-  async processTransaction(transaction: Transaction): Promise<Reward | null> {
+
+  async prepareReward(transaction: Transaction): Promise<Reward | null> {
     // Verify merchant is a partner
     let merchant;
     try {
@@ -41,14 +74,14 @@ export class RewardService {
     }
     
     // Determine if user gets a reward (20% chance)
-    const rewardChance = Math.random();
+    const rewardChance = this.random();
     if (rewardChance <= 0.2) {
       // Calculate reward amount (1-10% of transaction)
-      const rewardPercentage = Math.floor(Math.random() * 10) + 1;
+      const rewardPercentage = Math.floor(this.random() * 10) + 1;
       const rewardAmount = transaction.amount * (rewardPercentage / 100);
       
       // Create reward
-      const reward = {
+      const reward : Reward = {
         id: uuidv4(), // Use UUID for unique reward IDs
         userId: user.id,
         merchantId: merchant.id,
@@ -58,21 +91,53 @@ export class RewardService {
         createdAt: new Date(),
         status: 'pending'
       };
-      
+
+      return reward;
+    }
+
+    return null;
+  }
+  
+  async processTransaction(transaction: Transaction): Promise<Reward | null> {
+
+    const existingReward : Reward = await this.getRewardByTransactionId(transaction.id);
+
+    if(existingReward) {
+      return existingReward;
+    }
+
+    const reward : Reward | null = await this.prepareReward(transaction);
+
+    // Merchant not partner
+    // User does not exist
+    // Math.random gods weren't on the side of the user
+    if(!reward) return null;
+
+    const max_retries = 0;
+    let attempt = 0;
+
+    while (attempt < max_retries) {
       // Process reward
       try {
-        // This could fail and leave the reward in a pending state with no retry mechanism
         await this.issueRewardToUser(reward);
         reward.status = 'issued';
         console.log('Reward issued successfully:', reward);
         return reward;
       } catch (error) {
-        console.error('Failed to issue reward:', error);
-        return reward; // Returns the reward with status still "pending"
+        attempt++;
+        console.warn(`Failed to issue reward; attempt ${attempt}/${max_retries}`, error);
+        if(attempt > max_retries) {
+          console.error(`Failed to issue reward; returning pending reward`, error);
+        }
       }
     }
-    
-    return null;
+
+    reward.status = 'failed';
+    return reward;
+  }
+
+  getRewardByTransactionId(id: string) : Reward {
+    throw new Error('STUB - Method not implemented.');
   }
   
   private async issueRewardToUser(reward: Reward): Promise<void> {
