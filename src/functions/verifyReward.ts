@@ -60,6 +60,15 @@ const getTransactionById = async (id: string): Promise<Transaction | null> => {
       timestamp: new Date()
     };
   }
+  if (id === 'valid-transaction-456') {
+    return {
+      id: 'valid-transaction-456',
+      merchantId: 'merchant2',
+      userId: 'user1',
+      amount: 100.00,
+      timestamp: new Date()
+    };
+  }
   return null;
 };
 
@@ -76,7 +85,27 @@ const getRewardByTransactionId = async (transactionId: string): Promise<Reward |
       createdAt: new Date()
     };
   }
+  if (transactionId === 'valid-transaction-456') {
+    return {
+      id: 'reward456',
+      transactionId: 'valid-transaction-456',
+      userId: 'user1',
+      merchantId: 'merchant2',
+      amount: 5.00,
+      status: 'issued',
+      createdAt: new Date()
+    };
+  }
   return null;
+};
+
+const STATUS_CODES: { [key: string]: number } = {
+    SUCCESS: 200,
+    BAD_REQUEST: 400,
+    UNAUTHORIZED: 401,
+    FORBIDDEN: 403,
+    NOT_FOUND: 404,
+    INTERNAL_SERVER_ERROR: 500
 };
 
 /**
@@ -92,23 +121,77 @@ const getRewardByTransactionId = async (transactionId: string): Promise<Reward |
  */
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    // TODO: Implement this function according to requirements
-    
     // 1. Extract and validate API key from headers
+    const apiKey = event.headers['x-api-key'];
+
+    if (!apiKey) {
+      return {
+        statusCode: STATUS_CODES.UNAUTHORIZED,
+        body: JSON.stringify({ message: 'API key is required' })
+      };
+    }
     
     // 2. Authenticate the merchant
+    const merchant = await getMerchantByApiKey(apiKey);
+    if (!merchant) {
+      return {
+        statusCode: STATUS_CODES.FORBIDDEN,
+        body: JSON.stringify({ message: 'Invalid API key' })
+      };
+    }
+    if (!merchant.isActive) {
+      return {
+        statusCode: STATUS_CODES.FORBIDDEN,
+        body: JSON.stringify({ message: 'Merchant account is inactive' })
+      };
+    }
     
     // 3. Extract and validate the transaction ID
+    const transactionId = event.queryStringParameters?.transactionId;
+    if (!transactionId) {
+      return {
+        statusCode: STATUS_CODES.BAD_REQUEST,
+        body: JSON.stringify({ message: 'Transaction ID is required' })
+      };
+    }
+
+    const transaction = await getTransactionById(transactionId);
+    if (!transaction) {
+      return {
+        statusCode: STATUS_CODES.NOT_FOUND,
+        body: JSON.stringify({ message: 'Transaction not found' })
+      };
+    }
     
     // 4. Verify the transaction belongs to the authenticated merchant
+    if (transaction.merchantId !== merchant.id) {
+      return {
+        statusCode: STATUS_CODES.FORBIDDEN,
+        body: JSON.stringify({ message: 'Transaction does not belong to this merchant' })
+      };
+    }
     
     // 5. Retrieve reward information
+    const reward = await getRewardByTransactionId(transactionId);
+    if (!reward) {
+      return {
+        statusCode: STATUS_CODES.NOT_FOUND,
+        body: JSON.stringify({ message: 'No reward found for this transaction' })
+      };
+    }
     
     // 6. Return appropriate response
-    
     return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Not implemented yet' })
+      statusCode: STATUS_CODES.SUCCESS,
+      body: JSON.stringify({
+        message: 'Reward verification successful',
+        reward: {
+          id: reward.id,
+          amount: reward.amount,
+          status: reward.status,
+          createdAt: reward.createdAt
+        }
+      })
     };
   } catch (error) {
     console.error('Error processing request:', error);
